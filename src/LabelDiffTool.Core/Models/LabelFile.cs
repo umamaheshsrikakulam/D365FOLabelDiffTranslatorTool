@@ -1,3 +1,5 @@
+using D365KnowledgeBase.Labels;
+
 namespace LabelDiffTool.Core.Models;
 
 /// <summary>
@@ -7,8 +9,8 @@ namespace LabelDiffTool.Core.Models;
 /// </summary>
 public sealed class LabelFile
 {
-    // Label ids are case-sensitive in D365, so use an ordinal (case-sensitive) index.
-    private readonly Dictionary<string, LabelEntry> _index = new(StringComparer.Ordinal);
+    // Label ids are compared ignoring case, as Visual Studio does (LabelIds.Comparer).
+    private readonly Dictionary<string, LabelEntry> _index = new(LabelIds.Comparer);
     private readonly List<LabelEntry> _entries = new();
 
     public LabelFile(string fileId, string language, string? filePath = null)
@@ -26,9 +28,6 @@ public sealed class LabelFile
 
     /// <summary>BCP-47-ish language tag, e.g. <c>en-US</c>. May be edited by the user or set by detection.</summary>
     public string Language { get; set; }
-
-    /// <summary>Raw file-level header comment lines (verbatim, including the leading <c>;</c>).</summary>
-    public IList<string> HeaderComments { get; } = new List<string>();
 
     /// <summary>All entries in original file order.</summary>
     public IReadOnlyList<LabelEntry> Entries => _entries;
@@ -86,24 +85,21 @@ public sealed class LabelFile
         return _index.Remove(id);
     }
 
-    /// <summary>Removes all entries and header comments.</summary>
+    /// <summary>Removes all entries.</summary>
     public void Clear()
     {
         _entries.Clear();
         _index.Clear();
-        HeaderComments.Clear();
     }
 
     /// <summary>
-    /// Replaces this file's content (entries, header comments and language) with a copy of
+    /// Replaces this file's content (entries and language) with a copy of
     /// another file's, keeping this instance and its <see cref="FilePath"/>. Used to reload from disk.
     /// </summary>
     public void ReplaceWith(LabelFile other)
     {
         ArgumentNullException.ThrowIfNull(other);
         Clear();
-        foreach (var header in other.HeaderComments)
-            HeaderComments.Add(header);
         foreach (var entry in other.Entries)
             AddOrReplace(entry.Clone());
         Language = other.Language;

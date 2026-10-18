@@ -1,3 +1,4 @@
+using LabelIds = D365KnowledgeBase.Labels.LabelIds;
 using LabelDiffTool.Core.Models;
 
 namespace LabelDiffTool.Core.Comparison;
@@ -12,13 +13,12 @@ public static class LabelComparer
     {
         ArgumentNullException.ThrowIfNull(files);
 
-        // Union of all ids across every file. Identity stays case-sensitive (label ids are),
-        // but ordering is case-insensitive so 'A' and 'a' sort together; the ordinal tie-break
-        // keeps the order deterministic when two ids differ only by case.
+        // Union of all ids across every file. Ids are compared ignoring case, and ordered the way the
+        // file is saved: by id, ordinal, ignoring case (LabelIds.Comparer).
         var ids = files
             .SelectMany(f => f.Entries.Select(e => e.Id))
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(id => id, LabelOrder.ById)
+            .Distinct(LabelIds.Comparer)
+            .OrderBy(id => id, LabelIds.Comparer)
             .ToList();
 
         var rows = new List<ComparisonRow>(ids.Count);

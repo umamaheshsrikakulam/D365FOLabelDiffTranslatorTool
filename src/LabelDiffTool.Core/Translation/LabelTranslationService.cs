@@ -1,4 +1,5 @@
 using LabelDiffTool.Core.Models;
+using LabelIds = D365KnowledgeBase.Labels.LabelIds;
 
 namespace LabelDiffTool.Core.Translation;
 
@@ -60,7 +61,7 @@ public sealed class LabelTranslationService
         ArgumentNullException.ThrowIfNull(target);
 
         var entries = labelIds
-            .Distinct(StringComparer.Ordinal)
+            .Distinct(LabelIds.Comparer)
             .Select(source.Find)
             .Where(e => e is not null)
             .Select(e => e!)

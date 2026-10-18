@@ -1,106 +1,57 @@
-using System.Text;
-using System.Text.RegularExpressions;
+using D365KnowledgeBase.Labels;
 using LabelDiffTool.Core.Models;
 
 namespace LabelDiffTool.Core.Parsing;
 
 /// <summary>
-/// Reads D365 F&O label files. The format is line-oriented:
-/// <code>
-/// LabelId=Label text
-/// ;Optional description bound to the label above
-/// </code>
-/// A semicolon line that appears before any label is treated as a file header comment.
+/// Reads D365 F&amp;O label files. The format itself — <c>LabelId=Label text</c>, then an optional
+/// <c> ;Description</c> line — is read by <see cref="LabelResourceFile"/> (D365KnowledgeBase.Labels), as
+/// tolerantly as Visual Studio: with or without a BOM, a description starting with <c>;</c> or <c>#</c>, legacy
+/// <c>@SYS123=</c> lines. Lines that hold no label are not kept, as in Visual Studio.
 /// </summary>
-public static partial class LabelParser
+public static class LabelParser
 {
-    // A label definition: an id (no '=' or ';'), then '=', then the rest of the line.
-    [GeneratedRegex(@"^(?<id>[^=;]+?)=(?<text>.*)$")]
-    private static partial Regex LabelLine();
-
-    // A language tag such as "en-US", "fr", "zh-Hans".
-    [GeneratedRegex(@"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,4})*$")]
-    private static partial Regex LanguageTag();
-
     public static LabelFile ParseFile(string path)
     {
-        var language = LanguageFromFileName(Path.GetFileName(path)) ?? "unknown";
-        var fileId = Path.GetFileName(path);
-        var lines = File.ReadAllLines(path, Encoding.UTF8);
-        var file = Parse(fileId, language, lines);
+        var file = FromResource(Path.GetFileName(path), LanguageOf(path), LabelResourceFile.Read(path));
         file.FilePath = path;
         return file;
     }
 
-    public static LabelFile Parse(string fileId, string language, IEnumerable<string> lines)
-    {
-        var file = new LabelFile(fileId, language);
-        LabelEntry? current = null;
-        var seenFirstLabel = false;
-
-        foreach (var raw in lines)
-        {
-            var line = raw.TrimEnd('\r', '\n');
-
-            if (IsComment(line, out var commentBody))
-            {
-                if (current is not null && current.Description is null)
-                {
-                    // First comment line directly under a label becomes its description.
-                    current.Description = commentBody;
-                }
-                else if (!seenFirstLabel)
-                {
-                    // Comments preceding any label are file-level header comments (kept verbatim).
-                    file.HeaderComments.Add(line);
-                }
-                // Extra comment lines beyond the first description are ignored on purpose;
-                // add a Description list here later if multi-line notes must survive round-trip.
-                continue;
-            }
-
-            var m = LabelLine().Match(line);
-            if (m.Success)
-            {
-                seenFirstLabel = true;
-                current = new LabelEntry(m.Groups["id"].Value.Trim(), m.Groups["text"].Value);
-                file.AddOrReplace(current);
-            }
-            // Blank / unrecognised lines are skipped; they don't break label/description binding.
-        }
-
-        return file;
-    }
-
-    private static bool IsComment(string line, out string body)
-    {
-        var trimmed = line.TrimStart();
-        if (trimmed.StartsWith(';'))
-        {
-            body = trimmed[1..];
-            return true;
-        }
-        body = string.Empty;
-        return false;
-    }
+    public static LabelFile Parse(string fileId, string language, IEnumerable<string> lines) =>
+        FromResource(fileId, language, LabelResourceFile.Parse(lines));
 
     /// <summary>
     /// Extracts the language tag from a name like <c>Foo.fr-FR.label.txt</c> → <c>fr-FR</c>.
     /// Returns <c>null</c> when the name doesn't carry a recognisable tag.
     /// </summary>
-    public static string? LanguageFromFileName(string fileName)
+    public static string? LanguageFromFileName(string fileName) => LabelLanguages.FromContentFileName(fileName);
+
+    /// <summary>
+    /// The language of a content file: the <c>&lt;Language&gt;</c> of its <c>AxLabelFile</c> descriptor when the
+    /// file sits in a model (<c>…\AxLabelFile\LabelResources\&lt;lang&gt;\</c>), else the tag in its name, else
+    /// "unknown".
+    /// </summary>
+    private static string LanguageOf(string path)
     {
-        const string suffix = ".label.txt";
-        var name = fileName;
-        if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-            name = name[..^suffix.Length];
-        else
-            name = Path.GetFileNameWithoutExtension(name);
+        var fullPath = Path.GetFullPath(path);
+        var labelFileFolder = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(fullPath)));
+        if (labelFileFolder != null && string.Equals(Path.GetFileName(labelFileFolder), "AxLabelFile", StringComparison.OrdinalIgnoreCase))
+        {
+            var descriptor = LabelFileDescriptorReader.ReadAll(Path.GetDirectoryName(labelFileFolder)!)
+                .FirstOrDefault(d => string.Equals(Path.GetFullPath(d.ContentFilePath), fullPath, StringComparison.OrdinalIgnoreCase));
+            if (descriptor != null)
+                return descriptor.Language;
+        }
 
-        var lastDot = name.LastIndexOf('.');
-        if (lastDot < 0) return null;
+        return LanguageFromFileName(Path.GetFileName(path)) ?? "unknown";
+    }
 
-        var candidate = name[(lastDot + 1)..];
-        return LanguageTag().IsMatch(candidate) ? candidate : null;
+    private static LabelFile FromResource(string fileId, string language, LabelResourceFile resource)
+    {
+        var file = new LabelFile(fileId, language);
+        foreach (var e in resource.Entries)
+            file.AddOrReplace(new Models.LabelEntry(e.Id, e.Text, e.Description.Length == 0 ? null : e.Description));
+        return file;
     }
 }

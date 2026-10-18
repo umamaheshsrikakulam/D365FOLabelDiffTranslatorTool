@@ -9,6 +9,9 @@ using LabelDiffTool.Core.Comparison;
 using LabelDiffTool.Core.Models;
 using LabelDiffTool.Core.Parsing;
 using LabelDiffTool.Core.Translation;
+using LabelIds = D365KnowledgeBase.Labels.LabelIds;
+using LabelLanguage = D365KnowledgeBase.Labels.LabelLanguage;
+using LabelLanguages = D365KnowledgeBase.Labels.LabelLanguages;
 
 namespace LabelDiffTool.App.ViewModels;
 
@@ -41,7 +44,7 @@ public partial class MainViewModel : ObservableObject
 
     public ICollectionView RowsView { get; }
 
-    public IReadOnlyList<LanguageOption> Languages { get; } = LanguageCatalog.Common;
+    public IReadOnlyList<LabelLanguage> Languages { get; } = LabelLanguages.Common;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TranslateIntoTargetCommand))]
@@ -279,7 +282,7 @@ public partial class MainViewModel : ObservableObject
         if (Files.Count < 2 || _selectedRows.Count == 0)
             return Task.CompletedTask;
 
-        var ids = _selectedRows.Select(r => r.Id).Distinct(StringComparer.Ordinal).ToList();
+        var ids = _selectedRows.Select(r => r.Id).Distinct(LabelIds.Comparer).ToList();
 
         return RunBusyAsync("Translating selected label(s) into all files…", async () =>
         {

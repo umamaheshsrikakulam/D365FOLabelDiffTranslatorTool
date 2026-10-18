@@ -15,10 +15,11 @@ missing from each side, and filling the gaps with free machine translation.
   file can't be opened twice.
 - Pick a **Source** and **Target** from dropdowns to diff any pair side by side; a **⇄** button
   swaps them, and clicking a file in the list sets it as the target.
-- Compare by label id (case-insensitive ordering) and **highlight labels missing** from either side.
-  Filter with **Gaps only** and/or **Needs saving only**.
-- Language per file, auto-detected from the file name (`Foo.fr-FR.label.txt` → `fr-FR`) with a
-  manual override.
+- Compare by label id (ids compared ignoring case, as Visual Studio does) and **highlight labels
+  missing** from either side. Filter with **Gaps only** and/or **Needs saving only**.
+- Language per file, with a manual override: the `<Language>` of the label file's descriptor when the
+  file sits in a model (`…\AxLabelFile\LabelResources\<lang>\`), else auto-detected from the file
+  name (`Foo.fr-FR.label.txt` → `fr-FR`).
 - Translate using a **free** engine (GTranslate — Google/Bing/Yandex/Microsoft web endpoints, no API
   key). Four scopes:
   - selected label(s) → the side that lacks each,
@@ -40,18 +41,24 @@ missing from each side, and filling the gaps with free machine translation.
 ### Copy rule (important)
 
 When a label is copied from one file into another, the **label id is preserved exactly**, only the
-**text is translated**, and the **description (`;` line) is carried over verbatim** — it is never
+**text is translated**, and the **description (` ;` line) is carried over verbatim** — it is never
 translated. Machine-translated labels are flagged until saved.
 
-Files are always **saved sorted by label id** (the same order shown in the grid), so filled-in
-labels are never just appended at the end.
+Files are always **saved exactly as Visual Studio's label editor saves them**: sorted by label id,
+ignoring case (the same order shown in the grid, so filled-in labels are never just appended at the
+end), UTF-8 with BOM, CRLF, each description on a ` ;Description` line. Lines that hold no label —
+a comment above the first label, a blank line — are not kept; Visual Studio drops them too. Reading
+is as tolerant as Visual Studio's: with or without BOM, descriptions starting with `;` or `#`.
+
+The label file format, ids and languages come from the
+[`D365KnowledgeBase.Labels`](https://www.nuget.org/packages/D365KnowledgeBase.Labels) NuGet package.
 
 ## Structure
 
 ```
 LabelDiffTool/
 ├─ src/
-│  ├─ LabelDiffTool.Core/     Parsing, comparison, translation (no UI; N-file capable)
+│  ├─ LabelDiffTool.Core/     File model, comparison, translation (no UI; N-file capable)
 │  └─ LabelDiffTool.App/      WPF UI (MVVM) + dark theme
 ├─ tests/
 │  └─ LabelDiffTool.Tests/    xUnit tests (parser, comparer, writer, batcher, translation service)

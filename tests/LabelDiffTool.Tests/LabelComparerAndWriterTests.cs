@@ -49,14 +49,39 @@ public class LabelComparerAndWriterTests
 
         var text = LabelWriter.Write(file);
 
-        Assert.Contains(";File header", text);
-        Assert.Contains("CustAccount=Customer account", text);
-        Assert.Contains(";The customer account number", text);
-        Assert.Contains("ItemName=Item name", text);
+        // Visual Studio's format: sorted by id, " ;" description lines, CRLF; the header holds no label and is dropped.
+        Assert.Equal(
+            "CustAccount=Customer account\r\n" +
+            " ;The customer account number\r\n" +
+            "ItemName=Item name\r\n",
+            text);
 
         // Re-parsing the written text yields the same entries.
         var reparsed = LabelParser.Parse("Foo.en-US.label.txt", "en-US", text.Split("\r\n"));
         Assert.Equal(2, reparsed.Count);
         Assert.Equal("The customer account number", reparsed.Find("CustAccount")!.Description);
+    }
+
+    [Fact]
+    public void WriteFile_writes_utf8_with_bom_like_visual_studio()
+    {
+        var file = FileWith("Foo.fr.label.txt", "fr",
+            ("Zeta", "Dernier", null),
+            ("alpha", "Champ personnalisé", "SOG_1_Setup"));
+        var path = Path.Combine(Path.GetTempPath(), $"labeldiff-{Guid.NewGuid():N}.label.txt");
+        try
+        {
+            LabelWriter.WriteFile(file, path);
+
+            var bytes = File.ReadAllBytes(path);
+            Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes.Take(3));
+            Assert.Equal(
+                "alpha=Champ personnalisé\r\n ;SOG_1_Setup\r\nZeta=Dernier\r\n",
+                System.Text.Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 }

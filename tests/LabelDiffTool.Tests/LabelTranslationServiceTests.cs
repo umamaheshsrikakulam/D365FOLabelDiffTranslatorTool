@@ -39,7 +39,7 @@ public class LabelTranslationServiceTests
     private static List<string> WrittenIds(LabelFile file) =>
         LabelWriter.Write(file)
             .Split("\r\n", StringSplitOptions.RemoveEmptyEntries)
-            .Where(l => l.Contains('=') && !l.StartsWith(';'))
+            .Where(l => l.Contains('=') && !l.TrimStart().StartsWith(';'))
             .Select(l => l[..l.IndexOf('=')])
             .ToList();
 
